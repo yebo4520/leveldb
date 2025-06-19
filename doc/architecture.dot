@@ -1,0 +1,150 @@
+digraph LevelDB_Architecture {
+    rankdir=LR; // 从左到右布局
+    node [shape=record, style=filled, fillcolor=lightgrey];
+
+    subgraph cluster_api {
+        label="Public API (include/leveldb/)";
+        style=filled;
+        color=lightblue;
+        node [fillcolor=aliceblue];
+
+        DB [label="{DB|Put(), Get(), Delete()\lNewIterator(), GetSnapshot()\lReleaseSnapshot(), Write()\l}"];
+        Options [label="{Options|create_if_missing, error_if_exists\lcomparator, filter_policy\lblock_cache, block_size\lcompression, paranoid_checks\lenv\l...}"];
+        ReadOptions [label="{ReadOptions|snapshot, fill_cache\lverify_checksums\l}"];
+        WriteOptions [label="{WriteOptions|sync\l}"];
+        Iterator [label="{Iterator|SeekToFirst(), SeekToLast()\lSeek(), Valid(), Next(), Prev()\lkey(), value(), status()\l}"];
+        WriteBatch [label="{WriteBatch|Put(), Delete(), Clear()\l}"];
+        Slice [label="{Slice|data(), size(), ToString()\l}"];
+        Status [label="{Status|ok(), ToString()\l}"];
+        Comparator [label="{Comparator|Compare(), Name()\lFindShortestSeparator()\lFindShortSuccessor()\l}"];
+        Env [label="{Env|NewSequentialFile(), NewRandomAccessFile()\lNewWritableFile(), GetCurrentTimeMicros()\l...}"];
+        Cache [label="{Cache|NewLRUCache()\lInsert(), Lookup(), Erase(), Value()\l}"];
+        FilterPolicy [label="{FilterPolicy|NewBloomFilterPolicy()\lName(), CreateFilter(), KeyMayMatch()\l}"];
+        Table [label="{Table|Open(), NewIterator()\l}"];
+        TableBuilder [label="{TableBuilder|Add(), Finish(), Abandon()\l}"];
+    }
+
+    subgraph cluster_core_components {
+        label="Core Components (db/, table/, util/)";
+        style=filled;
+        color=lightgoldenrodyellow;
+
+        subgraph cluster_storage_engine {
+            label="Storage Engine";
+            node [fillcolor=lightyellow];
+
+            MemTable [label="{MemTable (in-memory)|Stores recent writes (SkipList)\lConsulted for reads\lFlushed to Level-0 SSTable\l}"];
+            LogFile [label="{Log File (*.log)|Sequential writes (updates)\lConverted to SSTable on rotation\l}"];
+            SSTable [label="{SSTable (*.ldb, on-disk)|Sorted key-value pairs\lData Blocks, Index Block, Filter Block, Meta Blocks, Footer\lOrganized in Levels (L0, L1, ...)\l}"];
+            Manifest [label="{MANIFEST File|Metadata about SSTables per level\lKey ranges, versioning\l}"];
+            CurrentFile [label="{CURRENT File|Pointer to latest MANIFEST\l}"];
+            VersionSet [label="{VersionSet/Version/VersionEdit|Manages DB state (versions)\lTracks SSTables in levels\lHandles version transitions\l}"];
+        }
+
+        subgraph cluster_processes {
+            label="Key Processes";
+            node [fillcolor=lightyellow];
+            Compaction [label="{Compaction|Background process\lMerges SSTables (L0->L1, L_i -> L_i+1)\lReduces read cost, reclaims space\l}"];
+            Recovery [label="{Recovery|Replays Log File on startup\lRebuilds MemTable\lEnsures consistency\l}"];
+        }
+
+        subgraph cluster_data_structures {
+            label="Internal Data Structures & Utilities";
+            node [fillcolor=lightyellow];
+            SkipList [label="{SkipList|Probabilistic sorted data structure\lUsed by MemTable\l}"];
+            Block [label="{Block (Data/Index/Meta)|Unit of I/O in SSTable\lOptionally compressed\l}"];
+            BlockCache [label="{BlockCache (from Cache API)|Caches uncompressed blocks\l}"];
+            Filter [label="{Filter (e.g., Bloom Filter)|Reduces disk reads for Get()\lAssociated with SSTables\l}"];
+        }
+    }
+
+    // API to Core relationships
+    DB -> MemTable [label="writes/reads"];
+    DB -> LogFile [label="writes"];
+    DB -> SSTable [label="reads/compactions"];
+    DB -> VersionSet [label="manages versions"];
+    DB -> Compaction [label="triggers"];
+    DB -> Recovery [label="initiates"];
+    DB -> Options;
+    DB -> ReadOptions;
+    DB -> WriteOptions;
+    DB -> Iterator;
+    DB -> WriteBatch;
+    DB -> Env [label="uses for I/O"];
+    DB -> Cache [label="uses for BlockCache"];
+    DB -> FilterPolicy [label="configures"];
+    DB -> Comparator [label="configures"];
+
+    Options -> Comparator;
+    Options -> FilterPolicy;
+    Options -> Cache;
+    Options -> Env;
+
+    Iterator -> SSTable [label="scans"];
+    Iterator -> MemTable [label="scans"];
+
+    WriteBatch -> DB [label="applies to"];
+
+    // Core component relationships
+    MemTable -> SkipList [label="uses"];
+    MemTable -> LogFile [label="replicates from (recovery)"];
+    LogFile -> MemTable [label="populates (writes)"];
+    LogFile -> SSTable [label="converted to L0"];
+
+    SSTable -> Block [label="composed of"];
+    SSTable -> Filter [label="contains (optional)"];
+    SSTable -> BlockCache [label="uses"];
+    SSTable -> IndexBlock [label="contains", style=dotted]; // Conceptual part of SSTable
+    SSTable -> MetaIndexBlock [label="contains", style=dotted]; // Conceptual part of SSTable
+
+    VersionSet -> Manifest [label="reads/writes"];
+    VersionSet -> SSTable [label="tracks"];
+    Manifest -> SSTable [label="references"];
+    CurrentFile -> Manifest [label="points to"];
+
+    Compaction -> SSTable [label="reads/writes/creates"];
+    Compaction -> VersionSet [label="updates"];
+
+    Recovery -> LogFile [label="reads"];
+    Recovery -> MemTable [label="rebuilds"];
+
+    FilterPolicy -> Filter [label="creates"];
+    Cache -> BlockCache [label="provides"];
+
+    // Shared utilities (conceptual)
+    Slice_User [label="Slice (User Data)"] [shape=ellipse, fillcolor=white, style=solid];
+    Slice_User -> Slice [style=dotted, arrowhead=none, label="represented as"];
+    Slice_User -> DB [label="Key/Value for Put/Get"];
+    Slice_User -> Iterator [label="Key/Value from iteration"];
+
+    // High-level data flow for a write
+    subgraph cluster_write_flow {
+        label = "Write Path";
+        rankdir=TD;
+        style=dashed;
+        WriteOp [label="Write(key, value)", shape=ellipse, fillcolor=palegreen];
+        WriteOp -> LogFile [label="1. Append to Log"];
+        LogFile -> MemTable [label="2. Insert into MemTable", style=dashed]; // Dashed as it's an immediate consequence
+        MemTable_to_SSTable [label="Later: MemTable full\n-> Flush to Level-0 SSTable", shape=note, fillcolor=lightcyan];
+        MemTable -> MemTable_to_SSTable [style=dotted];
+        MemTable_to_SSTable -> SSTable [label="creates"];
+    }
+
+    // High-level data flow for a read
+    subgraph cluster_read_flow {
+        label = "Read Path";
+        rankdir=TD;
+        style=dashed;
+        ReadOp [label="Get(key)", shape=ellipse, fillcolor=palegreen];
+        ReadOp -> MemTable [label="1. Check MemTable"];
+        MemTable -> Read_L0 [label="Not found?"];
+        Read_L0 [label="2. Check Level-0 SSTables", shape=ellipse, fillcolor=palegreen];
+        Read_L0 -> Read_L1plus [label="Not found?"];
+        Read_L1plus [label="3. Check Level-1..N SSTables\n(using index, filter, cache)", shape=ellipse, fillcolor=palegreen];
+        Read_L1plus -> SSTable [label="accesses", style=dotted];
+        BlockCache_Read [label="Block Cache", shape=box, style=rounded, fillcolor=lightpink];
+        Filter_Read [label="Filter", shape=box, style=rounded, fillcolor=lightpink];
+        SSTable -> BlockCache_Read [label="uses"];
+        SSTable -> Filter_Read [label="uses"];
+    }
+}
