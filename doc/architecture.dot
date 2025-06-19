@@ -44,7 +44,7 @@ digraph LevelDB_Architecture {
         subgraph cluster_processes {
             label="Key Processes";
             node [fillcolor=lightyellow];
-            Compaction [label="{Compaction|Background process\lMerges SSTables (L0->L1, L_i -> L_i+1)\lReduces read cost, reclaims space\l}"];
+            Compaction [label="{Compaction|Background process\lMerges SSTables (L0 to L1, L_i to L_i+1)\lReduces read cost, reclaims space\l}"]; // Corrected label
             Recovery [label="{Recovery|Replays Log File on startup\lRebuilds MemTable\lEnsures consistency\l}"];
         }
 
@@ -141,7 +141,7 @@ digraph LevelDB_Architecture {
         Read_L0 [label="2. Check Level-0 SSTables", shape=ellipse, fillcolor=palegreen];
         Read_L0 -> Read_L1plus [label="Not found?"];
         Read_L1plus [label="3. Check Level-1..N SSTables\n(using index, filter, cache)", shape=ellipse, fillcolor=palegreen];
-        Read_L1plus -> SSTable [label="accesses", style=dotted];
+        Read_L1plus -> SSTable [label="accesses", style=dotted]; // Edge definition is present
         BlockCache_Read [label="Block Cache", shape=box, style=rounded, fillcolor=lightpink];
         Filter_Read [label="Filter", shape=box, style=rounded, fillcolor=lightpink];
         SSTable -> BlockCache_Read [label="uses"];
