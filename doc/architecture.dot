@@ -1,12 +1,12 @@
 digraph LevelDB_Architecture {
     rankdir=LR; // 从左到右布局
-    node [shape=record, style=filled, fillcolor=lightgrey];
+    node [shape=record, style=filled, fillcolor=lightgrey]; // Default node style, overridden by HTML-like
 
     subgraph cluster_api {
         label="Public API (include/leveldb/)";
         style=filled;
         color=lightblue;
-        node [fillcolor=aliceblue];
+        node [fillcolor=aliceblue]; // Nodes in this cluster unless overridden
 
         DB [label="{DB|Put(), Get(), Delete()\lNewIterator(), GetSnapshot()\lReleaseSnapshot(), Write()\l}"];
         Options [label="{Options|create_if_missing, error_if_exists\lcomparator, filter_policy\lblock_cache, block_size\lcompression, paranoid_checks\lenv\l...}"];
@@ -28,29 +28,45 @@ digraph LevelDB_Architecture {
         label="Core Components (db/, table/, util/)";
         style=filled;
         color=lightgoldenrodyellow;
+        // node [fillcolor=lightyellow]; // Default for this cluster, overridden by HTML-like
 
         subgraph cluster_storage_engine {
             label="Storage Engine";
-            node [fillcolor=lightyellow];
+             node [shape=none, margin=0]; // Apply HTML-like settings to nodes in this sub-cluster by default
 
-            MemTable [label="{MemTable (in-memory)|Stores recent writes (SkipList)\lConsulted for reads\lFlushed to Level-0 SSTable\l}"];
-            LogFile [label="{Log File (*.log)|Sequential writes (updates)\lConverted to SSTable on rotation\l}"];
-            SSTable [label="{SSTable (*.ldb, on-disk)|Sorted key-value pairs\lData Blocks, Index Block, Filter Block, Meta Blocks, Footer\lOrganized in Levels (L0, L1, ...)\l}"];
-            Manifest [label="{MANIFEST File|Metadata about SSTables per level\lKey ranges, versioning\l}"];
-            CurrentFile [label="{CURRENT File|Pointer to latest MANIFEST\l}"];
-            VersionSet [label="{VersionSet/Version/VersionEdit|Manages DB state (versions)\lTracks SSTables in levels\lHandles version transitions\l}"];
+            MemTable [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" ID="MemTableMain" BGCOLOR="lightyellow">
+  <TR><TD COLSPAN="1"><B>MemTable (in-memory)</B></TD></TR>
+  <TR><TD ALIGN="LEFT" PORT="desc">Stores recent writes (SkipList)<BR ALIGN="LEFT"/>Consulted for reads<BR ALIGN="LEFT"/>Flushed to Level-0 SSTable<BR ALIGN="LEFT"/></TD></TR>
+</TABLE>>];
+
+            LogFile [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" ID="LogFileMain" BGCOLOR="lightyellow">
+  <TR><TD COLSPAN="1"><B>Log File (*.log)</B></TD></TR>
+  <TR><TD ALIGN="LEFT" PORT="desc">Sequential writes (updates)<BR ALIGN="LEFT"/>Converted to SSTable on rotation<BR ALIGN="LEFT"/></TD></TR>
+</TABLE>>];
+
+            SSTable [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" ID="SSTableMain" BGCOLOR="lightyellow">
+  <TR><TD COLSPAN="1"><B>SSTable (*.ldb, on-disk)</B></TD></TR>
+  <TR><TD ALIGN="LEFT" PORT="desc">Sorted key-value pairs<BR ALIGN="LEFT"/>Data Blocks, Index Block, Filter Block, Meta Blocks, Footer<BR ALIGN="LEFT"/>Organized in Levels (L0, L1, ...)<BR ALIGN="LEFT"/></TD></TR>
+</TABLE>>];
+
+            Manifest [shape=record, style=filled, fillcolor=lightyellow, label="{MANIFEST File|Metadata about SSTables per level\lKey ranges, versioning\l}"]; // Keep as record for now
+            CurrentFile [shape=record, style=filled, fillcolor=lightyellow, label="{CURRENT File|Pointer to latest MANIFEST\l}"]; // Keep as record
+            VersionSet [shape=record, style=filled, fillcolor=lightyellow, label="{VersionSet/Version/VersionEdit|Manages DB state (versions)\lTracks SSTables in levels\lHandles version transitions\l}"]; // Keep as record
         }
 
         subgraph cluster_processes {
             label="Key Processes";
-            node [fillcolor=lightyellow];
-            Compaction [label="{Compaction|Background process\lMerges SSTables (L0 to L1, L_i to L_i+1)\lReduces read cost, reclaims space\l}"]; // Corrected label
+            node [shape=record, style=filled, fillcolor=lightyellow]; // Keep as record for this cluster
+            Compaction [label="{Compaction|Background process\lMerges SSTables (L0 to L1, L_i to L_i+1)\lReduces read cost, reclaims space\l}"];
             Recovery [label="{Recovery|Replays Log File on startup\lRebuilds MemTable\lEnsures consistency\l}"];
         }
 
         subgraph cluster_data_structures {
             label="Internal Data Structures & Utilities";
-            node [fillcolor=lightyellow];
+            node [shape=record, style=filled, fillcolor=lightyellow]; // Keep as record for this cluster
             SkipList [label="{SkipList|Probabilistic sorted data structure\lUsed by MemTable\l}"];
             Block [label="{Block (Data/Index/Meta)|Unit of I/O in SSTable\lOptionally compressed\l}"];
             BlockCache [label="{BlockCache (from Cache API)|Caches uncompressed blocks\l}"];
@@ -59,60 +75,60 @@ digraph LevelDB_Architecture {
     }
 
     // API to Core relationships
-    DB -> MemTable [label="writes/reads"];
-    DB -> LogFile [label="writes"];
-    DB -> SSTable [label="reads/compactions"];
-    DB -> VersionSet [label="manages versions"];
-    DB -> Compaction [label="triggers"];
-    DB -> Recovery [label="initiates"];
+    DB -> MemTable;
+    DB -> LogFile;
+    DB -> SSTable;
+    DB -> VersionSet;
+    DB -> Compaction;
+    DB -> Recovery;
     DB -> Options;
     DB -> ReadOptions;
     DB -> WriteOptions;
     DB -> Iterator;
     DB -> WriteBatch;
-    DB -> Env [label="uses for I/O"];
-    DB -> Cache [label="uses for BlockCache"];
-    DB -> FilterPolicy [label="configures"];
-    DB -> Comparator [label="configures"];
+    DB -> Env;
+    DB -> Cache;
+    DB -> FilterPolicy;
+    DB -> Comparator;
 
     Options -> Comparator;
     Options -> FilterPolicy;
     Options -> Cache;
     Options -> Env;
 
-    Iterator -> SSTable [label="scans"];
-    Iterator -> MemTable [label="scans"];
+    Iterator -> SSTable;
+    Iterator -> MemTable;
 
-    WriteBatch -> DB [label="applies to"];
+    WriteBatch -> DB;
 
     // Core component relationships
-    MemTable -> SkipList [label="uses"];
-    MemTable -> LogFile [label="replicates from (recovery)"];
-    LogFile -> MemTable [label="populates (writes)"];
+    MemTable -> SkipList;
+    MemTable -> LogFile [label="replicates from (recovery)"]; // This might need port if LogFile has specific input ports for this
+    LogFile -> MemTable [label="populates (writes)"];      // This might need port if MemTable has specific input ports
     LogFile -> SSTable [label="converted to L0"];
 
-    SSTable -> Block [label="composed of"];
-    SSTable -> Filter [label="contains (optional)"];
-    SSTable -> BlockCache [label="uses"];
-    SSTable -> IndexBlock [label="contains", style=dotted]; // Conceptual part of SSTable
-    SSTable -> MetaIndexBlock [label="contains", style=dotted]; // Conceptual part of SSTable
+    SSTable -> Block;
+    SSTable -> Filter;
+    SSTable -> BlockCache;
+    SSTable -> IndexBlock [label="contains", style=dotted];
+    SSTable -> MetaIndexBlock [label="contains", style=dotted];
 
-    VersionSet -> Manifest [label="reads/writes"];
-    VersionSet -> SSTable [label="tracks"];
-    Manifest -> SSTable [label="references"];
-    CurrentFile -> Manifest [label="points to"];
+    VersionSet -> Manifest;
+    VersionSet -> SSTable;
+    Manifest -> SSTable;
+    CurrentFile -> Manifest;
 
-    Compaction -> SSTable [label="reads/writes/creates"];
-    Compaction -> VersionSet [label="updates"];
+    Compaction -> SSTable;
+    Compaction -> VersionSet;
 
-    Recovery -> LogFile [label="reads"];
-    Recovery -> MemTable [label="rebuilds"];
+    Recovery -> LogFile;
+    Recovery -> MemTable;
 
-    FilterPolicy -> Filter [label="creates"];
-    Cache -> BlockCache [label="provides"];
+    FilterPolicy -> Filter;
+    Cache -> BlockCache;
 
     // Shared utilities (conceptual)
-    Slice_User [label="Slice (User Data)"] [shape=ellipse, fillcolor=white, style=solid];
+    Slice_User [shape=ellipse, style=filled, fillcolor=white, label="Slice (User Data)"];
     Slice_User -> Slice [style=dotted, arrowhead=none, label="represented as"];
     Slice_User -> DB [label="Key/Value for Put/Get"];
     Slice_User -> Iterator [label="Key/Value from iteration"];
@@ -122,12 +138,22 @@ digraph LevelDB_Architecture {
         label = "Write Path";
         rankdir=TD;
         style=dashed;
-        WriteOp [label="Write(key, value)", shape=ellipse, fillcolor=palegreen];
-        WriteOp -> LogFile [label="1. Append to Log"];
-        LogFile -> MemTable [label="2. Insert into MemTable", style=dashed]; // Dashed as it's an immediate consequence
-        MemTable_to_SSTable [label="Later: MemTable full\n-> Flush to Level-0 SSTable", shape=note, fillcolor=lightcyan];
-        MemTable -> MemTable_to_SSTable [style=dotted];
-        MemTable_to_SSTable -> SSTable [label="creates"];
+        node [shape=none, margin=0]; // Default for nodes in this subgraph
+
+        WriteOp [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" BGCOLOR="palegreen">
+  <TR><TD PORT="wr_op_port">Write(key, value)</TD></TR>
+</TABLE>>];
+
+        WriteOp:wr_op_port -> LogFile:LogFileMain [label="1. Append to Log"]; // Target main LogFile HTML node
+        LogFile:LogFileMain -> MemTable:MemTableMain [label="2. Insert into MemTable", style=dashed]; // Target main MemTable HTML node
+
+        MemTable_to_SSTable [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" BGCOLOR="lightcyan">
+  <TR><TD>Later: MemTable full<BR ALIGN="LEFT"/>-&gt; Flush to Level-0 SSTable</TD></TR>
+</TABLE>>];
+        MemTable:MemTableMain -> MemTable_to_SSTable [style=dotted];
+        MemTable_to_SSTable -> SSTable:SSTableMain [label="creates"]; // Target main SSTable HTML node
     }
 
     // High-level data flow for a read
@@ -135,16 +161,30 @@ digraph LevelDB_Architecture {
         label = "Read Path";
         rankdir=TD;
         style=dashed;
-        ReadOp [label="Get(key)", shape=ellipse, fillcolor=palegreen];
-        ReadOp -> MemTable [label="1. Check MemTable"];
-        MemTable -> Read_L0 [label="Not found?"];
-        Read_L0 [label="2. Check Level-0 SSTables", shape=ellipse, fillcolor=palegreen];
+        node [shape=none, margin=0]; // Default for nodes in this subgraph
+
+        ReadOp [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" BGCOLOR="palegreen">
+  <TR><TD PORT="rd_op_port">Get(key)</TD></TR>
+</TABLE>>];
+        ReadOp:rd_op_port -> MemTable:MemTableMain [label="1. Check MemTable"]; // Target main MemTable
+
+        Read_L0 [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" BGCOLOR="palegreen">
+  <TR><TD PORT="rd_l0_port">2. Check Level-0 SSTables</TD></TR>
+</TABLE>>];
+        MemTable:MemTableMain -> Read_L0 [label="Not found?"];
+
+        Read_L1plus [label=<
+<TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4" BGCOLOR="palegreen">
+  <TR><TD PORT="rd_l1p_port">3. Check Level-1..N SSTables<BR ALIGN="LEFT"/>(using index, filter, cache)</TD></TR>
+</TABLE>>];
         Read_L0 -> Read_L1plus [label="Not found?"];
-        Read_L1plus [label="3. Check Level-1..N SSTables\n(using index, filter, cache)", shape=ellipse, fillcolor=palegreen];
-        Read_L1plus -> SSTable [label="accesses", style=dotted]; // Edge definition is present
-        BlockCache_Read [label="Block Cache", shape=box, style=rounded, fillcolor=lightpink];
-        Filter_Read [label="Filter", shape=box, style=rounded, fillcolor=lightpink];
-        SSTable -> BlockCache_Read [label="uses"];
-        SSTable -> Filter_Read [label="uses"];
+        Read_L1plus:rd_l1p_port -> SSTable:SSTableMain [label="accesses", style=dotted]; // Target main SSTable
+
+        BlockCache_Read [shape=box, style="rounded,filled", fillcolor=lightpink, label="Block Cache"];
+        Filter_Read [shape=box, style="rounded,filled", fillcolor=lightpink, label="Filter"];
+        SSTable:SSTableMain -> BlockCache_Read [label="uses"];
+        SSTable:SSTableMain -> Filter_Read [label="uses"];
     }
 }
